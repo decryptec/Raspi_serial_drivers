@@ -1,63 +1,43 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#define answer_attr "/sys/class/my_class/my_dev0/answer"
-#define text_attr "/sys/class/my_class/my_dev0/text"
+#define RAW_VALUE_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/raw_value"  // Adjust if necessary
+#define VREF 3.3
+#define ADS1115_FULL_SCALE 32768.0 // Use floating-point for calculations
 
 int main() {
-    FILE *sysfs_file;
-    char buffer[256];
-    char value_to_write[256];
+    int fd, raw_value;
+    float voltage;
+    char buf[16];  // Buffer to read the raw value
 
-    // Answer R/W
-    // Reading the attribute
-    sysfs_file = fopen(answer_attr, "r");
-    if (sysfs_file == NULL) {
-        perror("Failed to open sysfs file");
-        exit(EXIT_FAILURE);
+    // Open the raw_value sysfs entry
+    fd = open(RAW_VALUE_PATH, O_RDONLY);
+    if (fd < 0) {
+        perror("Failed to open raw_value");
+        return 1;
     }
-    fscanf(sysfs_file, "%255s", buffer);
-    fclose(sysfs_file);
-    printf("Current value: %s\n", buffer);
 
-    // Prompt user for the value to write
-    printf("Enter the value to write: ");
-    scanf("%255s", value_to_write);
-
-    // Writing to the attribute
-    sysfs_file = fopen(answer_attr, "w");
-    if (sysfs_file == NULL) {
-        perror("Failed to open sysfs file");
-        exit(EXIT_FAILURE);
+    // Read the raw value from the sysfs entry
+    if (read(fd, buf, sizeof(buf)) < 0) {
+        perror("Failed to read raw_value");
+        close(fd);
+        return 1;
     }
-    fprintf(sysfs_file, "%s", value_to_write);  // Write user-provided value
-    fclose(sysfs_file);
-    printf("Write answer successful!\n");
 
-    // Text R/W
-    // Reading attribute
-    sysfs_file = fopen(text_attr, "r");
-    if (sysfs_file == NULL) {
-        perror("Failed to open sysfs file");
-        exit(EXIT_FAILURE);
-    }
-    fscanf(sysfs_file, "%255s", buffer);
-    fclose(sysfs_file);
-    printf("Current text: %s\n", buffer);  // Changed from fprintf to printf
+    // Convert the raw value to an integer
+    raw_value = atoi(buf);
 
-    // Prompt user for new text to write
-    printf("Enter new text to write: ");  // Fixed typo in prompt message
-    scanf("%255s", value_to_write);
+    // Close the file descriptor
+    close(fd);
 
-    // Writing to the attribute
-    sysfs_file = fopen(text_attr, "w");
-    if (sysfs_file == NULL) {
-        perror("Failed to open sysfs file");
-        exit(EXIT_FAILURE);
-    }
-    fprintf(sysfs_file, "%s", value_to_write);  // Write user-provided value
-    fclose(sysfs_file);
-    printf("Write text successful!\n");
+    // Calculate the voltage
+    voltage = (raw_value / ADS1115_FULL_SCALE) * VREF;
 
-    return 0;    
+    // Print the results
+    printf("Raw ADC Value: %d\n", raw_value);
+    printf("Voltage: %.3f V\n", voltage);
+
+    return 0;
 }

@@ -9,7 +9,7 @@
 			#size-cells = <0>;
 			
 			my_ads: my_ads@48{
-				compatible = "decryptec, my_ads";
+				compatible = "decryptec,my_ads";
 				reg = <0x48>;
 				status = "okay";
 			};

@@ -50,11 +50,11 @@ static int adc_read_raw(struct iio_dev *indio_dev, struct iio_chan_spec const *c
         }
 
         raw_value = be16_to_cpu(ret);
-        *val = raw_value;  // Return raw value
+       // *val = raw_value;  // Return raw value
 
         // Calculate voltage in mV
-        int voltage_mV = (raw_value * VREF * 1000) / ADS1115_FULL_SCALE;
-        *val2 = voltage_mV;  // Store voltage in millivolts
+        //int voltage_mV = (raw_value * VREF * 1000) / ADS1115_FULL_SCALE;
+        //*val2 = voltage_mV;  // Store voltage in millivolts
 
         return IIO_VAL_INT_PLUS_MICRO;
     }
@@ -77,7 +77,7 @@ static const struct iio_info my_adc_info = {
 
 /* Device Tree compatibility */
 static const struct of_device_id my_driver_ids[] = {
-    { .compatible = "decryptec,myADS" },
+    { .compatible = "decryptec,my_ads" },
     {},
 };
 MODULE_DEVICE_TABLE(of, my_driver_ids);
