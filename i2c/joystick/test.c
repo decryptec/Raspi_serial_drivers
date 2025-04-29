@@ -5,19 +5,39 @@
 #include <string.h>
 #include <errno.h>
 
-#define SYSFS_RAW_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/raw_value" 
-#define SYSFS_VOLTAGE_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/voltage" 
+#define SYSFS_RAW_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/raw_value"
+#define SYSFS_VOLTAGE_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/voltage"
+#define SYSFS_CHANNEL_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/channel"
 #define BUFFER_SIZE 64
 #define SLEEP_SECONDS 1 // Interval between readings
 
-int main() {
-    int raw_fd, voltage_fd;
+int main(int argc, char *argv[]) {
+    int raw_fd, voltage_fd, channel_fd;
     char raw_buffer[BUFFER_SIZE];
     char voltage_buffer[BUFFER_SIZE];
-    ssize_t raw_bytes_read, voltage_bytes_read;
+    char channel_buffer[BUFFER_SIZE];
+    ssize_t raw_bytes_read, voltage_bytes_read, channel_bytes_written;
     long raw_value;
     long volts;
-    long mV; 
+    long mV;
+    int channel = 0; // Default channel
+
+    // Check for command-line argument for channel
+    if (argc > 1) {
+        char *endptr;
+        long channel_long = strtol(argv[1], &endptr, 10);
+
+        // Basic error handling for the input
+        if (endptr == argv[1] || *endptr != '\0') {
+            fprintf(stderr, "Invalid channel argument: %s\n", argv[1]);
+            return EXIT_FAILURE;
+        }
+        if (channel_long < 0 || channel_long > 3) {
+            fprintf(stderr, "Channel must be between 0 and 3\n");
+            return EXIT_FAILURE;
+        }
+        channel = (int)channel_long;
+    }
 
     // Open the sysfs files for reading
     raw_fd = open(SYSFS_RAW_PATH, O_RDONLY);
@@ -33,10 +53,31 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    // Open the channel sysfs file for writing
+    channel_fd = open(SYSFS_CHANNEL_PATH, O_WRONLY);
+    if (channel_fd == -1) {
+        fprintf(stderr, "Error opening %s: %s\n", SYSFS_CHANNEL_PATH, strerror(errno));
+        close(raw_fd);
+        close(voltage_fd);
+        return EXIT_FAILURE;
+    }
+
+    // Set the channel
+    snprintf(channel_buffer, sizeof(channel_buffer), "%d", channel);
+    channel_bytes_written = write(channel_fd, channel_buffer, strlen(channel_buffer));
+    if (channel_bytes_written == -1) {
+        fprintf(stderr, "Error writing to %s: %s\n", SYSFS_CHANNEL_PATH, strerror(errno));
+        close(raw_fd);
+        close(voltage_fd);
+        close(channel_fd);
+        return EXIT_FAILURE;
+    }
+     printf("Setting channel to %d\n", channel);
+
 
     while (1) {
         // Read the raw value from the sysfs file
-        lseek(raw_fd, 0, SEEK_SET); 
+        lseek(raw_fd, 0, SEEK_SET);
         raw_bytes_read = read(raw_fd, raw_buffer, sizeof(raw_buffer) - 1);
         if (raw_bytes_read == -1) {
             fprintf(stderr, "Error reading from %s: %s\n", SYSFS_RAW_PATH, strerror(errno));
@@ -52,14 +93,13 @@ int main() {
         }
 
         // Read the voltage from the sysfs file
-        lseek(voltage_fd, 0, SEEK_SET); 
+        lseek(voltage_fd, 0, SEEK_SET);
         voltage_bytes_read = read(voltage_fd, voltage_buffer, sizeof(voltage_buffer) - 1);
         if (voltage_bytes_read == -1) {
             fprintf(stderr, "Error reading from %s: %s\n", SYSFS_VOLTAGE_PATH, strerror(errno));
             break;
         }
         voltage_buffer[voltage_bytes_read] = '\0';
-
 
         // Extract volts and mV
         if (sscanf(voltage_buffer, "%ld.%03ld", &volts, &mV) != 2) {
@@ -68,7 +108,7 @@ int main() {
         }
 
         // Print the values
-        printf("Raw ADC Value: %ld, Voltage: %ld.%03ld V\n", raw_value, volts, mV);
+        printf("Raw ADC Value: %ld, Voltage: %ld.%03ld V, Channel: %d\n", raw_value, volts, mV, channel);
 
         sleep(SLEEP_SECONDS);
     }
@@ -76,6 +116,7 @@ int main() {
     // Close the sysfs files
     close(raw_fd);
     close(voltage_fd);
+    close(channel_fd);
 
     return EXIT_SUCCESS;
 }
