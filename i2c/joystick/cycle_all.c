@@ -5,22 +5,22 @@
 #include <string.h>
 #include <errno.h>
 
-#define SYSFS_RAW_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/raw_value"
+#define SYSFS_RAW_PATH     "/sys/class/i2c-dev/i2c-1/device/1-0048/raw_value"
 #define SYSFS_VOLTAGE_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/voltage"
 #define SYSFS_CHANNEL_PATH "/sys/class/i2c-dev/i2c-1/device/1-0048/channel"
-#define BUFFER_SIZE 64
-#define SLEEP_SECONDS 1 // Interval between readings
+#define BUFFER_SIZE        64
+#define SLEEP_SECONDS      1 // Interval between readings
 
 int main() {
-    int raw_fd, voltage_fd, channel_fd;
-    char raw_buffer[BUFFER_SIZE];
-    char voltage_buffer[BUFFER_SIZE];
-    char channel_buffer[BUFFER_SIZE];
+    int     raw_fd, voltage_fd, channel_fd;
+    char    raw_buffer[BUFFER_SIZE];
+    char    voltage_buffer[BUFFER_SIZE];
+    char    channel_buffer[BUFFER_SIZE];
     ssize_t raw_bytes_read, voltage_bytes_read, channel_bytes_written;
-    long raw_value;
-    long volts;
-    long mV;
-    int channel = 0; // Start with channel 0
+    long    raw_value;
+    long    volts;
+    long    mV;
+    int     channel = 0; // Start with channel 0
 
     // Open the sysfs files for reading
     raw_fd = open(SYSFS_RAW_PATH, O_RDONLY);
