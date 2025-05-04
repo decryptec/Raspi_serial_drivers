@@ -1,8 +1,14 @@
 #include <linux/module.h>
-#include <linux/init.h>
+#include <linux/kernel.h>
+#include <linux/fs.h>
+#include <linux/cdev.h>
 #include <linux/spi/spi.h>
+#include <linux/device.h>
+#include <linux/err.h>
 #include <linux/delay.h>
 
+#define DEVICE_NAME "my_lcd"
+#define MAJOR_NUM 300
 static struct spi_device *my_spi_device;
 
 // Register information about slave device;
@@ -16,6 +22,12 @@ struct spi_board_info my_spi_device_info =
 };
 
 static int __init my_init(void){
+	int ret;
+
+	ret = register_chrdev(MAJOR_NUM, DEVICE_NUM, &fops);
+	if (ret < 0) {
+		pr_err("Failed to register char device\n");
+	}
 	return 0;
 }
 
