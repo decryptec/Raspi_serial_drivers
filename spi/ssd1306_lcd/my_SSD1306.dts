@@ -4,17 +4,6 @@
 / {
     compatible = "brcm,bcm2711";
 
-    fragment@0 {
-        target = <&gpio>; // We're configuring GPIOs directly
-        frag0: __overlay__ {
-            decryptec_ssd1306_pins: decryptec_ssd1306_pins {
-                brcm,pins = <23 24>;  // DC and Reset pins on RPi GPIO
-                brcm,function = <1>;  // Output
-                brcm,pull = <0>;      // No pull-up/down
-            };
-        };
-    };
-
     fragment@1 {
         target = <&spi0>; // Using SPI0
         frag1: __overlay__ {
@@ -23,19 +12,19 @@
 
             pinctrl-names = "default";
             pinctrl-0 = <&spi0_pins>; // SPI0 pins only, not CS
-            cs-gpios = <&gpio 8 0>; // Chip select
+            cs-gpios = <&gpio 8 0>; // Chip select - GPIO8, Active Low
             status = "okay";
 
             ssd1306: ssd1306@0 {
                 compatible = "decryptec,my_SSD1306"; // Connect to custom driver
                 status = "okay";
-                reg = <0>; 
-		width = <128>;
-		height = <64>;
-		label = "decryptec_SSD1306";
-                spi-max-frequency = <10000000>; // 10 Mhz 
-                dc-gpios = <&gpio 23 1>; //Data/Command
-                reset-gpios = <&gpio 24 1>; //Reset
+                reg = <0>; // SPI Chip Select 0 (CE0)
+                width = <128>;
+                height = <64>;
+                label = "decryptec_SSD1306";
+                spi-max-frequency = <10000000>; // 10 MHz - adjust as needed
+                dc-gpios = <&gpio 23 1>; // Data/Command - GPIO23, Active High
+                reset-gpios = <&gpio 24 1>; // Reset - GPIO24, Active High
             };
         };
     };
@@ -43,7 +32,7 @@
     fragment@2 {
         target = <&spidev0>;
         __overlay__ {
-            status = "disabled";
+            status = "disabled"; // Disable the default spidev driver
         };
     };
 };
