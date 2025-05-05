@@ -21,22 +21,32 @@ struct spi_board_info my_spi_device_info =
 	.mode = SPI_MODE_0
 };
 
-static int __init my_init(void){
-	int ret;
+// Device tree
+static const struct spi_device_id my_ssd1306_id[] = {
+	{"decryptec,my_SSD1306", 0},
+	{}
+};
+MODULE_DEVICE_TABLE(spi, my_ssd1306_id);
 
-	ret = register_chrdev(MAJOR_NUM, DEVICE_NUM, &fops);
-	if (ret < 0) {
-		pr_err("Failed to register char device\n");
-	}
+static int my_ssd1306_probe(struct spi_device *spi){
 	return 0;
 }
 
-static void __exit my_exit(void)
-{
+static void my_ssd1306_remove(struct spi_device *spi){
+	
 }
 
-module_init(my_init);
-module_exit(my_exit);
+static struct spi_driver my_ssd1306_driver = {
+	.driver = {
+		.name = "my_ssd1306",
+		.owner = THIS_MODULE,
+	},
+	.probe = my_ssd1306_probe,
+	.remove = my_ssd1306_remove,
+	.it_table = my_ssd1306_id,
+};
+
+module_spi_driver(my_ssd1306_driver);
 
 /* Meta info */
 MODULE_LICENSE("GPL");
