@@ -7,8 +7,6 @@
 #include <linux/err.h>
 #include <linux/delay.h>
 
-#define DEVICE_NAME "my_lcd"
-#define MAJOR_NUM 300
 static struct spi_device *my_spi_device;
 
 // Register information about slave device;
