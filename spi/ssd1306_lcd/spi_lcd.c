@@ -1,18 +1,4 @@
 #include <linux/module.h>
-<<<<<<< HEAD
-<<<<<<< HEAD
-#include <linux/init.h>
-#include <linux/spi/spi.h>
-#include <linux/delay.h>
-
-=======
-#include <linux/kernel.h>
-#include <linux/fs.h>
-=======
-#include <linux/spi/spi.h>
-#include <linux/gpio/consumer.h> // Include for GPIO
-#include <linux/of_gpio.h>
->>>>>>> spi_lcd
 #include <linux/cdev.h>
 #include <linux/fs.h>
 #include <linux/uaccess.h>
@@ -23,13 +9,7 @@
 #include <linux/err.h>
 #include <linux/delay.h>
 
-<<<<<<< HEAD
-#define DEVICE_NAME "my_lcd"
-#define MAJOR_NUM 300
->>>>>>> spi_lcd
-=======
 #define DEVICE_NAME "ssd1306_spi"
->>>>>>> spi_lcd
 static struct spi_device *my_spi_device;
 
 struct my_lcd {
@@ -53,11 +33,6 @@ static void __exit my_exit(void)
 {
 }
 
-module_init(my_init);
-module_exit(my_exit);
-=======
-=======
->>>>>>> spi_lcd
 // Device tree
 static const struct spi_device_id my_ssd1306_id[] = {
 	{"decryptec,my_SSD1306", 0},
@@ -159,10 +134,6 @@ static struct spi_driver my_ssd1306_driver = {
 };
 
 module_spi_driver(my_ssd1306_driver);
-<<<<<<< HEAD
->>>>>>> spi_lcd
-=======
->>>>>>> spi_lcd
 
 /* Meta info */
 MODULE_LICENSE("GPL");
