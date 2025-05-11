@@ -229,7 +229,7 @@ static const struct i2c_device_id my_ads[] =
         {"my_ads", 0},
         {},
 };
-MODULE_DEVICE_TABLE(i2c, my_ads); //Missing module device table for i2c
+MODULE_DEVICE_TABLE(i2c, my_ads); 
 
 /* Probe function */
 static int my_adc_probe(struct i2c_client *client)
