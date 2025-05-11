@@ -169,7 +169,7 @@ static int read_reg(struct spi_device *spi, uint8_t reg, uint8_t *val) {
                         .tx_buf = tx_buf,
                         .rx_buf = rx_buf,
                         .len = 2,
-                        .delay.value = 10,
+                        .delay.value = 5,
 			.delay.unit = SPI_DELAY_UNIT_USECS,
                 },
         };
@@ -199,7 +199,7 @@ static int write_reg(struct spi_device *spi, uint8_t reg, uint8_t val) {
                 {
                         .tx_buf = tx_buf,
                         .len = 2,
-                        .delay.value = 10,
+                        .delay.value = 5,
 			.delay.unit = SPI_DELAY_UNIT_USECS,
                 },
         };
@@ -230,7 +230,7 @@ static int get_data(struct my_ADXL345 *adxl) {
                         .tx_buf = tx_buf,
                         .rx_buf = rx_buf,
                         .len = 7,
-                        .delay.value = 10,
+                        .delay.value = 5,
 			.delay.unit = SPI_DELAY_UNIT_USECS,
                 },
         };
@@ -303,6 +303,18 @@ static int adxl345_probe(struct spi_device *spi) {
 
         adxl->spi = spi;
         spi_set_drvdata(spi, adxl);
+
+	spi->mode = SPI_MODE_3;
+	spi->bits_per_word = 8;
+	    ret = spi_setup(spi); // Apply the above settings to the SPI device
+    if (ret) {
+        dev_err(&spi->dev, "spi_setup failed: %d\n", ret);
+        // devm_kzalloc memory will be freed automatically on error return from probe
+        return ret;
+    }
+    dev_info(&spi->dev, "SPI configured: mode=0x%x, speed=%dHz, bpw=%d\n",
+             spi->mode, spi->max_speed_hz, spi->bits_per_word);
+
         mutex_init(&adxl->lock);
 
         //Initialize default values
@@ -471,26 +483,26 @@ static void adxl345_remove(struct spi_device *spi) {
 
 /* Device Tree Compatibility */
 static const struct of_device_id adxl345_of_match[] = {
-        { .compatible = "decryptec,ADXL345_spi", .data = NULL},
+        { .compatible = "decryptec,ADXL345_spi"},
         {}
 };
 MODULE_DEVICE_TABLE(of, adxl345_of_match);
 
 static const struct spi_device_id adxl345_id[] = {
-        {.name = "ADXL345", },
+        {"ADXL345_spi", 0},
         {}
 };
 MODULE_DEVICE_TABLE(spi, adxl345_id);
 
 // SPI Driver Structure
 static struct spi_driver adxl345_driver = {
-        .driver = {
-                .name = "adxl345",
-                .of_match_table = adxl345_of_match,
-        },
         .probe = adxl345_probe,
         .remove = adxl345_remove,
-                .id_table = adxl345_id,
+	.id_table = adxl345_id,
+        .driver = {
+                .name = "adxl345_id",
+                .of_match_table = adxl345_of_match,
+        },
 };
 
 module_spi_driver(adxl345_driver);
