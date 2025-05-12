@@ -592,7 +592,7 @@ static void adxl345_remove(struct spi_device *spi) {
         write_reg(adxl->spi, REG_POWER_CTL, 0x00); // Put in standby mode
         dev_info(&spi->dev, "ADXL345 powered down to standby\n");
     }
-
+    // IRQ and GPIO are managed by devm_* functions, no explicit free needed here
     dev_info(&spi->dev, "ADXL345 driver removed successfully\n");
 }
 
