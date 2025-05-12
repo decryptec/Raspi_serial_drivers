@@ -3,17 +3,6 @@
 
 /{
     compatible = "brcm,bcm2711";
-/*
-    fragment@0 {
-        target = <&gpio>;  // Target the main GPIO controller node
-        __overlay__ {
-            spi0_pins: spi0_pins {
-                brcm,pins = <10 9 11>;  // MOSI (GPIO10), MISO (GPIO9), SCLK (GPIO11) - CHECK THESE!
-                brcm,function = <4>;   // ALT0 for SPI0
-                brcm,pull = <0>;       // No pull-up/down
-            };
-        };
-    };*/
 
     fragment@1 {
         target = <&spi0>;
@@ -25,14 +14,8 @@
             ADXL345: adxl345@0 {
                 compatible = "decryptec,ADXL345_spi";  // Match driver's of_match_table
                 reg = <0>;                  // SPI CE0 (Chip Enable 0)
-                spi-max-frequency = <5000000>; //  5 MHz - ADXL345 max from datasheet
-               // pinctrl-names = "default";
-               // pinctrl-0 = <&spi0_pins>;  // Use the spi0_pins we defined above
-                //cs-gpios = <&gpio 8 0>;     // Chip Select: GPIO8, active low
-                int1-gpio = <&gpio 17 0>;  // INT1 connected to GPIO1 (adjust) - Active High
-                //interrupt-parent = <&gpio>;
-                //interrupts = <17 2>; //GPIO 17, rising edge (adjust polarity if needed)
-
+		spi-max-frequency = <5000000>;      // 5 MHz
+		int1-gpio = <&gpio 1 0>;
             };
         };
     };
