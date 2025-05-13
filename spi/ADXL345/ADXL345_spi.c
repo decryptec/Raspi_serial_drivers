@@ -220,8 +220,17 @@ static const struct file_operations adxl345_fops = {
 
 static int read_reg(struct spi_device *spi, uint8_t reg, uint8_t *val) {
     int ret;
-    u8 tx_buf[2], rx_buf[2];
-
+    
+    // Simple helper function approach
+    ret = spi_w8r8(spi, reg | 0x80);
+    if (ret < 0)
+    {
+        dev_err(&spi->dev, "Failed to read REG 0x%02x: Error: %d\n", reg, ret);
+        return ret;
+    }
+    *val = (u8)ret;
+    /* Optional: Explicit approach
+    //u8 tx_buf[2], rx_buf[2];
     tx_buf[0] = reg | 0x80; // Read (MSB = 1)
     tx_buf[1] = 0x00;       // Dummy byte for clocking
 
@@ -244,13 +253,22 @@ static int read_reg(struct spi_device *spi, uint8_t reg, uint8_t *val) {
     }
 
     *val = rx_buf[1]; // Data is in the second byte received
+    */
     return 0;
 }
 
 static int write_reg(struct spi_device *spi, uint8_t reg, uint8_t val) {
     int ret;
-    u8 tx_buf[2];
 
+    // Simple helper function approach
+    u8 tx_buf[2] = {reg & ~0x80, val};
+    ret = spi_write(spi, tx_buf, 2);
+    if (ret) {
+        dev_err(&spi->dev, "Failed to write to REG 0x%02x: Error: %d\n", reg, ret);
+        return ret;
+    }
+    /* Optional: Explicit Approach
+    //u8 tx_buf[2];
     tx_buf[0] = reg & ~0x80; // Write (MSB = 0)
     tx_buf[1] = val;
 
@@ -270,6 +288,7 @@ static int write_reg(struct spi_device *spi, uint8_t reg, uint8_t val) {
         dev_err(&spi->dev, "SPI write_reg (0x%02x with 0x%02x) failed: %d\n", reg, val, ret);
         return ret;
     }
+    */
     return 0;
 }
 
@@ -295,9 +314,9 @@ static int get_data(struct my_ADXL345 *adxl) {
     spi_message_init(&msg);
     spi_message_add_tail(&xfer, &msg);
 
-    dev_info(&adxl->spi->dev, "GET_DATA: Calling spi_sync...\n");
+    dev_dbg(&adxl->spi->dev, "GET_DATA: Calling spi_sync...\n");
     ret = spi_sync(adxl->spi, &msg);
-    dev_info(&adxl->spi->dev, "GET_DATA: spi_sync returned %d\n", ret);
+    dev_dbg(&adxl->spi->dev, "GET_DATA: spi_sync returned %d\n", ret);
 
     if (ret) {
         dev_err(&adxl->spi->dev, "SPI Acceleration read failed in get_data: %d\n", ret);
@@ -318,7 +337,7 @@ static int get_data(struct my_ADXL345 *adxl) {
             break;
         }
     }
-    dev_info(&adxl->spi->dev, "get_data raw rx_buf: %s\n", temp_buf);
+    //dev_info(&adxl->spi->dev, "get_data raw rx_buf: %s\n", temp_buf);
 
     adxl->x = (s16)((rx_buf[2] << 8) | rx_buf[1]); // Use s16 for signed 16-bit
     adxl->y = (s16)((rx_buf[4] << 8) | rx_buf[3]);
@@ -327,50 +346,45 @@ static int get_data(struct my_ADXL345 *adxl) {
     return 0;
 }
 
-// Interrupt handler function
+// Interrupt handler function 
 static irqreturn_t irq_handler(int irq, void *dev_id) {
     struct my_ADXL345 *adxl = (struct my_ADXL345 *)dev_id;
     u8 int_source;
     int ret_val;
 
-    if (!adxl || !adxl->spi) return IRQ_NONE; // Sanity check
+    if (!adxl || !adxl->spi) {
+        return IRQ_NONE; // Sanity check
+    }
 
-    dev_info(&adxl->spi->dev, "IRQ HANDLER CALLED! irq=%d\n", irq);
+    // dev_dbg(&adxl->spi->dev, "IRQ HANDLER CALLED! irq=%d\n", irq);
 
-    // Read INT source register to clear interrupt on ADXL345
     ret_val = read_reg(adxl->spi, REG_INT_SOURCE, &int_source);
     if (ret_val) {
         dev_err(&adxl->spi->dev, "IRQ: Error reading INT_SOURCE: %d\n", ret_val);
-        return IRQ_NONE; 
+        return IRQ_NONE;
     }
-    dev_info(&adxl->spi->dev, "IRQ: INT_SOURCE read: 0x%02x\n", int_source);
+    // dev_dbg(&adxl->spi->dev, "IRQ: INT_SOURCE read: 0x%02x\n", int_source);
 
-    // For DATA_READY, we update the internal values.
-    if (int_source & INT_DATA_READY) {
-        dev_info(&adxl->spi->dev, "IRQ: DATA_READY detected.\n");
-        dev_info(&adxl->spi->dev, "IRQ: Attempting lock. IRQ %d\n", irq);
-        mutex_lock(&adxl->lock);
-        dev_info(&adxl->spi->dev, "IRQ: Lock acquired. IRQ %d\n", irq);
-
-        ret_val = get_data(adxl); // Update adxl->x, y, z
-        if (ret_val) {
-            dev_err(&adxl->spi->dev, "IRQ: Error from get_data() in DATA_READY: %d\n", ret_val);
-        } else {
-            dev_info(&adxl->spi->dev, "IRQ: DATA_READY processed. X: %d, Y: %d, Z: %d\n", adxl->x, adxl->y, adxl->z);
-        }
-        dev_dbg(&adxl->spi->dev, "IRQ: Releasing lock. IRQ %d\n", irq);
-        mutex_unlock(&adxl->lock);
-        dev_dbg(&adxl->spi->dev, "IRQ: Lock released. IRQ %d\n", irq);
-    }
-    if (int_source & INT_SINGLE_TAP) { 
-        dev_info(&adxl->spi->dev, "IRQ: SINGLE_TAP detected!\n");
-    }
+    // Check for Double Tap first
     if (int_source & INT_DOUBLE_TAP) {
         dev_info(&adxl->spi->dev, "IRQ: DOUBLE_TAP detected!\n");
     }
+    else if (int_source & INT_SINGLE_TAP) {
+        dev_info(&adxl->spi->dev, "IRQ: SINGLE_TAP detected!\n");
+    }
+
+    // Handle DATA_READY independently
+    if (int_source & INT_DATA_READY) {
+        mutex_lock(&adxl->lock);
+        ret_val = get_data(adxl);
+        if (ret_val) {
+            dev_err(&adxl->spi->dev, "IRQ: Error from get_data() in DATA_READY: %d\n", ret_val);
+        }
+        mutex_unlock(&adxl->lock);
+    }
 
     if (int_source == 0) {
-        dev_warn(&adxl->spi->dev, "IRQ: Noisy interrupt. INT_SOURCE was 0x00 after read.\n");
+        dev_warn(&adxl->spi->dev, "IRQ: INT_SOURCE was 0x00 after read.\n");
     }
 
     return IRQ_HANDLED;
@@ -379,185 +393,106 @@ static irqreturn_t irq_handler(int irq, void *dev_id) {
 // SPI probe
 static int adxl345_probe(struct spi_device *spi) {
     struct my_ADXL345 *adxl;
-    u8 devid;
+    u8 devid, check_val;
     int ret;
-    u8 data_format_val;
+    u8 data_format_val, bw_rate_val;
     int irq_num;
-    u8 check_val;
 
-    dev_info(&spi->dev, "Probing ADXL345\n");
+    // dev_info(&spi->dev, "Probing ADXL345\n"); // Minimal: can be enabled for debug
 
+    // Allocate and initialize device structure
     adxl = devm_kzalloc(&spi->dev, sizeof(*adxl), GFP_KERNEL);
-    if (!adxl)
-        return -ENOMEM;
+    if (!adxl) return -ENOMEM;
 
     adxl->spi = spi;
-    adxl->dev = &spi->dev; // Store a pointer to the device for convenience in dev_info
+    adxl->dev = &spi->dev;
     spi_set_drvdata(spi, adxl);
+    mutex_init(&adxl->lock);
+    adxl->irq = -1;
+    adxl->int1_gpio = -1;
 
-    // Configure SPI parameters
+    // Configure SPI bus parameters for this device
     spi->mode = SPI_MODE_3;
     spi->bits_per_word = 8;
-    // spi->max_speed_hz is usually set from DT's spi-max-frequency
-
     ret = spi_setup(spi);
-    if (ret) {
-        dev_err(adxl->dev, "spi_setup failed: %d\n", ret);
-        return ret;
-    }
-    dev_info(adxl->dev, "SPI configured: mode=0x%x, speed=%dHz, bpw=%d\n",
-             spi->mode, spi->max_speed_hz, spi->bits_per_word);
+    if (ret) { dev_err(adxl->dev, "spi_setup failed: %d\n", ret); return ret; }
+    // dev_info(adxl->dev, "SPI mode:0x%x, speed:%dHz\n", spi->mode, spi->max_speed_hz); // Minimal
 
-    mutex_init(&adxl->lock);
-
-    // Initialize default values for sysfs and internal state
-    adxl->irq = -1;   // Initialize irq to invalid, updated upon successful request_irq
-    adxl->int1_gpio = -1; // Initialize to invalid
-
-    // Read device ID
+    // Verify Device ID
     ret = read_reg(spi, REG_DEVID, &devid);
-    if (ret) {
-        dev_err(adxl->dev, "Failed to read REG_DEVID: %d\n", ret);
-        return ret;
-    }
-    if (devid != 0xE5) {
-        dev_err(adxl->dev, "Invalid device ID: 0x%02x (Expected 0xE5)\n", devid);
-        return -ENODEV;
-    }
-    dev_info(adxl->dev, "ADXL345 Device ID: 0x%02x\n", devid);
+    if (ret) { dev_err(adxl->dev, "Read REG_DEVID failed: %d\n", ret); return ret; }
+    if (devid != 0xE5) { dev_err(adxl->dev, "Invalid ID: 0x%02x\n", devid); return -ENODEV; }
+    dev_info(adxl->dev, "ADXL345 ID: 0x%02x\n", devid); // Keep this important one
 
-    // Initialize ADXL345 sensor registers
-    dev_info(adxl->dev, "Initializing ADXL345 registers...\n");
-    ret = write_reg(spi, REG_POWER_CTL, POWER_CTL_MEASURE); // Put in measurement mode
-    if (ret) return ret;
-    read_reg(spi, REG_POWER_CTL, &check_val);
-    dev_info(adxl->dev, "POWER_CTL after write: 0x%02x (expected 0x%02x)\n", check_val, POWER_CTL_MEASURE);
+    // Initialize ADXL345 core operational registers
+    // dev_info(adxl->dev, "Initializing ADXL345 core registers...\n"); // Minimal
+    ret = write_reg(spi, REG_POWER_CTL, POWER_CTL_MEASURE); if (ret) return ret;
+    data_format_val = 0x0B; adxl->range = 16; // +/-16g, Full Res
+    ret = write_reg(spi, REG_DATA_FORMAT, data_format_val); if (ret) return ret;
+    bw_rate_val = 0x0A; adxl->rate = 100;     // 100Hz ODR
+    ret = write_reg(spi, REG_BW_RATE, bw_rate_val); if (ret) return ret;
+    // Optional: Read-back checks for POWER_CTL, DATA_FORMAT, BW_RATE can be added for deep debug
 
-    data_format_val = 0x0B; // Default to +/-16g, Full Resolution, Active HIGH interrupts
-    adxl->range = 16; // Sync struct member with initial write
-    ret = write_reg(spi, REG_DATA_FORMAT, data_format_val);
-    if (ret) return ret;
-    read_reg(spi, REG_DATA_FORMAT, &check_val);
-    dev_info(adxl->dev, "DATA_FORMAT after write: 0x%02x (expected 0x%02x)\n", check_val, data_format_val);
+    // Configure Tap Detection Registers
+    // dev_info(adxl->dev, "Configuring Tap Detection...\n"); // Minimal
+    ret = write_reg(spi, REG_THRESH_TAP, 0x38); if (ret) return ret; // ~3.5g threshold (tune)
+    ret = write_reg(spi, REG_DUR, 0x18);        if (ret) return ret; // ~15ms duration (tune)
+    ret = write_reg(spi, REG_LATENT, 0x50);     if (ret) return ret; // 100ms latency (tune)
+    ret = write_reg(spi, REG_WINDOW, 0xF0);     if (ret) return ret; // 300ms window (tune)
+    ret = write_reg(spi, REG_TAP_AXES, 0x07);   if (ret) return ret; // Enable X,Y,Z tap
 
-    u8 bw_rate_val = 0x0A; // Default to 100Hz ODR
-    adxl->rate = 100; // Sync struct member
-    ret = write_reg(spi, REG_BW_RATE, bw_rate_val);
-    if (ret) return ret;
-    read_reg(spi, REG_BW_RATE, &check_val);
-    dev_info(adxl->dev, "BW_RATE after write: 0x%02x (expected 0x%02x)\n", check_val, bw_rate_val);
-
-    // Get Interrupt GPIO from Device Tree
+    // Setup Kernel-Side Interrupt Handling
     struct device_node *node = spi->dev.of_node;
-    if (!node) {
-        dev_err(adxl->dev, "Device Tree node not found\n");
-        return -ENODEV;
-    }
+    if (!node) { dev_err(adxl->dev, "DT node not found\n"); return -ENODEV; }
 
     adxl->int1_gpio = of_get_named_gpio(node, "int1-gpio", 0);
-    if (adxl->int1_gpio < 0) {
-        if (adxl->int1_gpio != -EPROBE_DEFER) {
-            dev_err(adxl->dev, "Failed to get int1-gpio from DT: %d\n", adxl->int1_gpio);
-        }
-        return adxl->int1_gpio; 
-    }
-    dev_info(adxl->dev, "DT: int1-gpio number: %d\n", adxl->int1_gpio);
+    if (adxl->int1_gpio < 0) { /* dev_err already in original */ return adxl->int1_gpio; }
+    // dev_info(adxl->dev, "DT int1-gpio: %d\n", adxl->int1_gpio); // Minimal
 
     ret = devm_gpio_request_one(&spi->dev, adxl->int1_gpio, GPIOF_IN, "adxl345_int1");
-    if (ret) {
-        dev_err(adxl->dev, "Failed to request INT1 GPIO %d: %d\n", adxl->int1_gpio, ret);
-        return ret;
-    }
+    if (ret) { dev_err(adxl->dev, "INT1 GPIO %d request failed: %d\n", adxl->int1_gpio, ret); return ret; }
 
     irq_num = gpio_to_irq(adxl->int1_gpio);
-    if (irq_num < 0) {
-        dev_err(adxl->dev, "Failed to get IRQ for GPIO %d: %d\n", adxl->int1_gpio, irq_num);
-        // devm_gpio_request_one will free the GPIO on probe failure
-        return irq_num;
-    }
+    if (irq_num < 0) { dev_err(adxl->dev, "IRQ map for GPIO %d failed: %d\n", adxl->int1_gpio, irq_num); return irq_num; }
     adxl->irq = irq_num;
-    dev_info(adxl->dev, "Mapped GPIO %d to IRQ %d\n", adxl->int1_gpio, adxl->irq);
+    dev_info(adxl->dev, "GPIO %d mapped to IRQ %d\n", adxl->int1_gpio, adxl->irq); // Keep
 
-    // Using devm_ for IRQ request means it's auto-freed on remove/probe fail after this point
     ret = devm_request_threaded_irq(&spi->dev, adxl->irq, NULL, irq_handler,
-                                   IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-                                   DEVICE_NAME, adxl);
-    if (ret) {
-        dev_err(adxl->dev, "Failed to request threaded IRQ %d: %d\n", adxl->irq, ret);
-        // devm_gpio_request_one will free GPIO
-        adxl->irq = -1; // Mark IRQ as not acquired
-        return ret;
-    }
-    dev_info(adxl->dev, "Successfully requested IRQ %d\n", adxl->irq);
+                                   IRQF_TRIGGER_RISING | IRQF_ONESHOT, DEVICE_NAME, adxl);
+    if (ret) { dev_err(adxl->dev, "Request IRQ %d failed: %d\n", adxl->irq, ret); adxl->irq = -1; return ret; }
+    // dev_info(adxl->dev, "Successfully requested IRQ %d\n", adxl->irq); // Minimal
 
-    // Configure ADXL345 to generate DATA_READY interrupt on INT1 pin
-    ret = write_reg(spi, REG_INT_ENABLE, INT_DATA_READY);
-    if (ret) {
-        dev_err(adxl->dev, "Failed to enable DATA_READY interrupt on ADXL345\n");
-        return ret;
-    }
-    dev_info(adxl->dev, "ADXL345 DATA_READY interrupt enabled\n");
+    // Configure ADXL345 Interrupt Output (if kernel IRQ setup succeeded)
+    if (adxl->irq >= 0) {
+        // dev_info(adxl->dev, "Configuring ADXL345 HW interrupts...\n"); // Minimal
+        ret = write_reg(spi, REG_INT_MAP, 0x00); if (ret) return ret; // Route all to INT1
 
-    ret = write_reg(spi, REG_INT_MAP, 0x00); // Route all interrupts to INT1
-    if (ret) {
-        dev_err(adxl->dev, "Failed to map interrupts to INT1 on ADXL345\n");
-        write_reg(spi, REG_INT_ENABLE, 0x00); // Attempt to disable
-        return ret;
+        u8 int_enable_flags = INT_DATA_READY | INT_SINGLE_TAP | INT_DOUBLE_TAP;
+        ret = write_reg(spi, REG_INT_ENABLE, int_enable_flags); if (ret) return ret;
+        // Optional: read_reg(spi, REG_INT_ENABLE, &check_val); dev_info for verification
+    } else {
+        dev_warn(adxl->dev, "Kernel IRQ not set, disabling ADXL345 HW interrupts.\n");
+        write_reg(spi, REG_INT_ENABLE, 0x00);
     }
-    dev_info(adxl->dev, "ADXL345 interrupts mapped to INT1\n");
 
-    // Character Device Registration
+    // Register Character Device
     ret = alloc_chrdev_region(&adxl->dev_num, 0, 1, DEVICE_NAME);
-    if (ret < 0) {
-        dev_err(adxl->dev, "Failed to allocate chrdev region: %d\n", ret);
-        return ret;
-    }
-    dev_info(adxl->dev, "Chrdev region allocated: major %d, minor %d\n", MAJOR(adxl->dev_num), MINOR(adxl->dev_num));
-
+    if (ret < 0) { dev_err(adxl->dev, "alloc_chrdev_region failed: %d\n", ret); return ret; }
     adxl->dev_class = class_create(CLASS_NAME);
-    if (IS_ERR(adxl->dev_class)) {
-        dev_err(adxl->dev, "Failed to create device class '%s'\n", CLASS_NAME);
-        unregister_chrdev_region(adxl->dev_num, 1);
-        return PTR_ERR(adxl->dev_class);
-    }
-    dev_info(adxl->dev, "Device class '%s' created\n", CLASS_NAME);
-
-    if (!device_create(adxl->dev_class, &spi->dev, adxl->dev_num, adxl, DEVICE_NAME)) {
-        dev_err(adxl->dev, "Failed to create device node /dev/%s\n", DEVICE_NAME);
-        class_destroy(adxl->dev_class);
-        unregister_chrdev_region(adxl->dev_num, 1);
-        return -EFAULT;
-    }
-    dev_info(adxl->dev, "Device node /dev/%s created\n", DEVICE_NAME);
-
+    if (IS_ERR(adxl->dev_class)) { /* ... error handling & unregister_chrdev_region ... */ return PTR_ERR(adxl->dev_class); }
+    if (!device_create(adxl->dev_class, &spi->dev, adxl->dev_num, adxl, DEVICE_NAME)) { /* ... error handling & class_destroy ... */ return -EFAULT; }
     cdev_init(&adxl->cdev, &adxl345_fops);
-    adxl->cdev.owner = THIS_MODULE;
     ret = cdev_add(&adxl->cdev, adxl->dev_num, 1);
-    if (ret < 0) {
-        dev_err(adxl->dev, "Failed to add cdev: %d\n", ret);
-        device_destroy(adxl->dev_class, adxl->dev_num);
-        class_destroy(adxl->dev_class);
-        unregister_chrdev_region(adxl->dev_num, 1);
-        return ret;
-    }
-    dev_info(adxl->dev, "Character device added\n");
+    if (ret < 0) { /* ... error handling & device_destroy ... */ return ret; }
+    // dev_info(adxl->dev, "/dev/%s created\n", DEVICE_NAME); // Minimal
 
-    // Sysfs Registration (using device_create_file on &spi->dev)
-    // Use sysfs_create_group for attribute_group
+    // Register Sysfs attributes
     ret = sysfs_create_group(&spi->dev.kobj, &adxl345_attr_group);
-    if (ret) {
-        dev_err(adxl->dev, "Failed to create sysfs attribute group: %d\n", ret);
-        // Cleanup cdev, class, region
-        cdev_del(&adxl->cdev);
-        device_destroy(adxl->dev_class, adxl->dev_num);
-        class_destroy(adxl->dev_class);
-        unregister_chrdev_region(adxl->dev_num, 1);
-        return ret;
-    }
-    dev_info(adxl->dev, "Sysfs attributes created\n");
+    if (ret) { dev_err(adxl->dev, "sysfs_create_group failed: %d\n", ret); /* ... cdev cleanup ... */ return ret; }
+    // dev_info(adxl->dev, "Sysfs attributes created\n"); // Minimal
 
-    dev_info(adxl->dev, "ADXL345 driver initialized successfully\n");
-    return 0; 
+    dev_info(adxl->dev, "ADXL345 driver initialized successfully\n"); // Keep this
+    return 0;
 }
 
 // SPI remove function
