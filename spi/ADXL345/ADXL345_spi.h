@@ -34,6 +34,14 @@
 #define INT_SINGLE_TAP 0x40 // Single Tap Interrupt Enable
 #define INT_DOUBLE_TAP 0x20 // Double Tap Interrupt Enable
 
+// Tap config
+#define REG_THRESH_TAP    0x1D // Tap threshold
+#define REG_DUR           0x21 // Tap duration
+#define REG_LATENT        0x22 // Tap latency (for double tap)
+#define REG_WINDOW        0x23 // Tap window (for double tap)
+#define REG_TAP_AXES      0x2A // Axis control for single tap/double tap
+#define DOUBLE_TAP_COOLDOWN_MS 400 // Cooldown period in milliseconds
+
 #define DEVICE_NAME "adxl345"
 #define CLASS_NAME "adxl345_class"
 
