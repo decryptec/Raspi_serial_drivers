@@ -4,7 +4,8 @@
 // sysfs - Measuring range
 static ssize_t range_show(struct device *dev, struct device_attribute *attr, char *buf) {
     struct my_ADXL345 *adxl = dev_get_drvdata(dev); // dev is &spi->dev here
-    if (!adxl) return -ENODEV;
+    if (!adxl) 
+        return -ENODEV;
     return sprintf(buf, "%d\n", adxl->range);
 }
 
@@ -35,10 +36,18 @@ static ssize_t range_store(struct device *dev, struct device_attribute *attr, co
     // Let's assume INT_INVERT is always 0 (active high interrupts) for now.
     // 0x08 = FULL_RES, +/-2g
     switch (new_range) {
-        case 2:  data_format_val = 0x08; break; // +/- 2g, FULL_RES
-        case 4:  data_format_val = 0x09; break; // +/- 4g, FULL_RES
-        case 8:  data_format_val = 0x0A; break; // +/- 8g, FULL_RES
-        case 16: data_format_val = 0x0B; break; // +/- 16g, FULL_RES
+        case 2:  
+            data_format_val = 0x08; 
+            break; // +/- 2g, FULL_RES
+        case 4:  
+            data_format_val = 0x09; 
+            break; // +/- 4g, FULL_RES
+        case 8:  
+            data_format_val = 0x0A; 
+            break; // +/- 8g, FULL_RES
+        case 16: 
+            data_format_val = 0x0B; 
+            break; // +/- 16g, FULL_RES
         default: 
             mutex_unlock(&adxl->lock);
             return -EINVAL;
@@ -58,7 +67,8 @@ static ssize_t range_store(struct device *dev, struct device_attribute *attr, co
 // sysfs - Sampling rate
 static ssize_t rate_show(struct device *dev, struct device_attribute *attr, char *buf) {
     struct my_ADXL345 *adxl = dev_get_drvdata(dev);
-    if (!adxl) return -ENODEV;
+    if (!adxl) 
+        return -ENODEV;
     return sprintf(buf, "%d\n", adxl->rate);
 }
 
@@ -145,24 +155,29 @@ static ssize_t adxl345_read(struct file *file, char __user *ubuf, size_t user_co
     if (!adxl || !adxl->spi) return -ENODEV;
     if (user_count == 0) return 0;
 
-    if (adxl->irq >= 0) disable_irq(adxl->irq);
+    if (adxl->irq >= 0) 
+        disable_irq(adxl->irq);
     mutex_lock(&adxl->lock);
 
     // Fetch fresh sensor data on each read
     get_data_ret = get_data(adxl);
-    if (get_data_ret) dev_err(adxl->dev, "READ: get_data() failed: %d\n", get_data_ret);
+    if (get_data_ret) 
+        dev_err(adxl->dev, "READ: get_data() failed: %d\n", get_data_ret);
 
     data_len_in_buffer = scnprintf(local_buffer, sizeof(local_buffer),
                                    "X: %d\nY: %d\nZ: %d\n",
                                    adxl->x, adxl->y, adxl->z);
 
     mutex_unlock(&adxl->lock);
-    if (adxl->irq >= 0) enable_irq(adxl->irq);
+    if (adxl->irq >= 0) 
+        enable_irq(adxl->irq);
 
     bytes_copied = min_t(size_t, user_count, data_len_in_buffer);
-    if (bytes_copied <= 0) return 0;
+    if (bytes_copied <= 0) 
+        return 0;
 
-    if (copy_to_user(ubuf, local_buffer, bytes_copied)) return -EFAULT;
+    if (copy_to_user(ubuf, local_buffer, bytes_copied)) 
+        return -EFAULT;
 
     // Reset file position so multiple reads work
     *ppos = 0; 
@@ -184,19 +199,30 @@ static int interface_init(struct my_ADXL345 *adxl, struct spi_device *spi)
 
     // Register Character Device
     ret = alloc_chrdev_region(&adxl->dev_num, 0, 1, DEVICE_NAME);
-    if (ret < 0) { dev_err(adxl->dev, "alloc_chrdev_region failed: %d\n", ret); return ret; }
+    if (ret < 0) { 
+        dev_err(adxl->dev, "alloc_chrdev_region failed: %d\n", ret); 
+        return ret; 
+    }
     adxl->dev_class = class_create(CLASS_NAME);
-    if (IS_ERR(adxl->dev_class)) { /* ... error handling & unregister_chrdev_region ... */ return PTR_ERR(adxl->dev_class); }
-    if (!device_create(adxl->dev_class, &spi->dev, adxl->dev_num, adxl, DEVICE_NAME)) { /* ... error handling & class_destroy ... */ return -EFAULT; }
+    if (IS_ERR(adxl->dev_class)) {
+        return PTR_ERR(adxl->dev_class); 
+    }
+    if (!device_create(adxl->dev_class, &spi->dev, adxl->dev_num, adxl, DEVICE_NAME)) { 
+        return -EFAULT; 
+    }
     cdev_init(&adxl->cdev, &adxl345_fops);
     ret = cdev_add(&adxl->cdev, adxl->dev_num, 1);
-    if (ret < 0) { /* ... error handling & device_destroy ... */ return ret; }
-    // dev_info(adxl->dev, "/dev/%s created\n", DEVICE_NAME); // Minimal
-
+    if (ret < 0) {
+        return ret; 
+    }
+    // dev_info(adxl->dev, "/dev/%s created\n", DEVICE_NAME); 
     // Register Sysfs attributes
     ret = sysfs_create_group(&spi->dev.kobj, &adxl345_attr_group);
-    if (ret) { dev_err(adxl->dev, "sysfs_create_group failed: %d\n", ret); /* ... cdev cleanup ... */ return ret; }
-    // dev_info(adxl->dev, "Sysfs attributes created\n"); // Minimal
+    if (ret) { 
+        dev_err(adxl->dev, "sysfs_create_group failed: %d\n", ret); 
+        return ret;
+    }
+    // dev_info(adxl->dev, "Sysfs attributes created\n"); 
 
     return 0;
 }

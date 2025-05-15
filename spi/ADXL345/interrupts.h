@@ -52,40 +52,67 @@ static int interrupt_init(struct my_ADXL345 *adxl, struct spi_device *spi)
 
     // Configure Tap Detection Registers
     // dev_info(adxl->dev, "Configuring Tap Detection...\n"); // Minimal
-    ret = write_reg(spi, REG_THRESH_TAP, 0x40); if (ret) return ret; // ~4g threshold (tune). Desired / 0.065 = THRESH
-    ret = write_reg(spi, REG_DUR, 0x20);        if (ret) return ret; // ~20ms duration (tune)
-    ret = write_reg(spi, REG_LATENT, 0x50);     if (ret) return ret; // 100ms latency (tune)
-    ret = write_reg(spi, REG_WINDOW, 0xF0);     if (ret) return ret; // 300ms window (tune)
-    ret = write_reg(spi, REG_TAP_AXES, 0x07);   if (ret) return ret; // Enable X,Y,Z tap
+    ret = write_reg(spi, REG_THRESH_TAP, 0x40); 
+    if (ret) 
+        return ret; // ~4g threshold (tune). Desired / 0.065 = THRESH
+    ret = write_reg(spi, REG_DUR, 0x20);        
+    if (ret) 
+        return ret; // ~20ms duration (tune)
+    ret = write_reg(spi, REG_LATENT, 0x50);     
+    if (ret) 
+        return ret; // 100ms latency (tune)
+    ret = write_reg(spi, REG_WINDOW, 0xF0);     
+    if (ret) 
+        return ret; // 300ms window (tune)
+    ret = write_reg(spi, REG_TAP_AXES, 0x07);   
+    if (ret) 
+        return ret; // Enable X,Y,Z tap
 
     // Setup Kernel-Side Interrupt Handling
     struct device_node *node = spi->dev.of_node;
-    if (!node) { dev_err(adxl->dev, "DT node not found\n"); return -ENODEV; }
+    if (!node) { 
+        dev_err(adxl->dev, "DT node not found\n"); 
+        return -ENODEV; 
+    }
 
     adxl->int1_gpio = of_get_named_gpio(node, "int1-gpio", 0);
-    if (adxl->int1_gpio < 0) { /* dev_err already in original */ return adxl->int1_gpio; }
-    // dev_info(adxl->dev, "DT int1-gpio: %d\n", adxl->int1_gpio); // Minimal
+    if (adxl->int1_gpio < 0) {
+        return adxl->int1_gpio; 
+    }
+    // dev_info(adxl->dev, "DT int1-gpio: %d\n", adxl->int1_gpio);
 
     ret = devm_gpio_request_one(&spi->dev, adxl->int1_gpio, GPIOF_IN, "adxl345_int1");
-    if (ret) { dev_err(adxl->dev, "INT1 GPIO %d request failed: %d\n", adxl->int1_gpio, ret); return ret; }
+    if (ret) { 
+        dev_err(adxl->dev, "INT1 GPIO %d request failed: %d\n", adxl->int1_gpio, ret); 
+        return ret; 
+    }
 
     irq_num = gpio_to_irq(adxl->int1_gpio);
-    if (irq_num < 0) { dev_err(adxl->dev, "IRQ map for GPIO %d failed: %d\n", adxl->int1_gpio, irq_num); return irq_num; }
+    if (irq_num < 0) { 
+        dev_err(adxl->dev, "IRQ map for GPIO %d failed: %d\n", adxl->int1_gpio, irq_num); 
+        return irq_num; 
+    }
     adxl->irq = irq_num;
-    dev_info(adxl->dev, "GPIO %d mapped to IRQ %d\n", adxl->int1_gpio, adxl->irq); // Keep
+    dev_info(adxl->dev, "GPIO %d mapped to IRQ %d\n", adxl->int1_gpio, adxl->irq); 
 
     ret = devm_request_threaded_irq(&spi->dev, adxl->irq, NULL, irq_handler,
                                    IRQF_TRIGGER_RISING | IRQF_ONESHOT, DEVICE_NAME, adxl);
-    if (ret) { dev_err(adxl->dev, "Request IRQ %d failed: %d\n", adxl->irq, ret); adxl->irq = -1; return ret; }
-    // dev_info(adxl->dev, "Successfully requested IRQ %d\n", adxl->irq); // Minimal
+    if (ret) { dev_err(adxl->dev, "Request IRQ %d failed: %d\n", adxl->irq, ret); adxl->irq = -1; 
+        return ret; 
+    }
+    // dev_info(adxl->dev, "Successfully requested IRQ %d\n", adxl->irq); 
 
     // Configure ADXL345 Interrupt Output (if kernel IRQ setup succeeded)
     if (adxl->irq >= 0) {
-        // dev_info(adxl->dev, "Configuring ADXL345 HW interrupts...\n"); // Minimal
-        ret = write_reg(spi, REG_INT_MAP, 0x00); if (ret) return ret; // Route all to INT1
+        // dev_info(adxl->dev, "Configuring ADXL345 HW interrupts...\n"); 
+        ret = write_reg(spi, REG_INT_MAP, 0x00); 
+        if (ret) 
+            return ret; // Route all to INT1
 
         u8 int_enable_flags = INT_DATA_READY | INT_SINGLE_TAP | INT_DOUBLE_TAP;
-        ret = write_reg(spi, REG_INT_ENABLE, int_enable_flags); if (ret) return ret;
+        ret = write_reg(spi, REG_INT_ENABLE, int_enable_flags); 
+        if (ret) 
+            return ret;
     } else {
         dev_warn(adxl->dev, "Kernel IRQ not set, disabling ADXL345 HW interrupts.\n");
         write_reg(spi, REG_INT_ENABLE, 0x00);

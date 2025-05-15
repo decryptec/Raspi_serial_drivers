@@ -31,31 +31,54 @@ static int adxl345_probe(struct spi_device *spi) {
     spi->mode = SPI_MODE_3;
     spi->bits_per_word = 8;
     ret = spi_setup(spi);
-    if (ret) { dev_err(adxl->dev, "spi_setup failed: %d\n", ret); return ret; }
-    // dev_info(adxl->dev, "SPI mode:0x%x, speed:%dHz\n", spi->mode, spi->max_speed_hz); // Minimal
+    if (ret) { 
+	    dev_err(adxl->dev, "spi_setup failed: %d\n", ret);
+	    return ret;
+    }
+    // dev_info(adxl->dev, "SPI mode:0x%x, speed:%dHz\n", spi->mode, spi->max_speed_hz); 
 
     // Verify Device ID
     ret = read_reg(spi, REG_DEVID, &devid);
-    if (ret) { dev_err(adxl->dev, "Read REG_DEVID failed: %d\n", ret); return ret; }
-    if (devid != 0xE5) { dev_err(adxl->dev, "Invalid ID: 0x%02x\n", devid); return -ENODEV; }
-    dev_info(adxl->dev, "ADXL345 ID: 0x%02x\n", devid); // Keep this important one
+    if (ret) {
+	    dev_err(adxl->dev, "Read REG_DEVID failed: %d\n", ret);
+	    return ret;
+    }
+    if (devid != 0xE5) { 
+	    dev_err(adxl->dev, "Invalid ID: 0x%02x\n", devid);
+	    return -ENODEV;
+    }
+    dev_info(adxl->dev, "ADXL345 ID: 0x%02x\n", devid);
 
     // Initialize ADXL345 core operational registers
-    // dev_info(adxl->dev, "Initializing ADXL345 core registers...\n"); // Minimal
-    ret = write_reg(spi, REG_POWER_CTL, POWER_CTL_MEASURE); if (ret) return ret;
+    // dev_info(adxl->dev, "Initializing ADXL345 core registers...\n");
+    ret = write_reg(spi, REG_POWER_CTL, POWER_CTL_MEASURE); 
+    if (ret) {
+	    return ret;
+    }
     data_format_val = 0x0B; adxl->range = 16; // +/-16g, Full Res
-    ret = write_reg(spi, REG_DATA_FORMAT, data_format_val); if (ret) return ret;
+    ret = write_reg(spi, REG_DATA_FORMAT, data_format_val); 
+    if (ret) {
+	    return ret;
+    }
     bw_rate_val = 0x0A; adxl->rate = 100;     // 100Hz ODR
-    ret = write_reg(spi, REG_BW_RATE, bw_rate_val); if (ret) return ret;
-    // Optional: Read-back checks for POWER_CTL, DATA_FORMAT, BW_RATE can be added for deep debug
+    ret = write_reg(spi, REG_BW_RATE, bw_rate_val); 
+    if (ret) {
+	    return ret;
+	}
 
     ret = interrupt_init(adxl, spi);
-    if (ret) { dev_err(adxl->dev, "Failed to initialize Interrupts: %d\n", ret); return ret; }
+    if (ret) { 
+	    dev_err(adxl->dev, "Failed to initialize Interrupts: %d\n", ret); 
+	    return ret;
+    }
 
     ret = interface_init(adxl, spi);
-    if (ret) { dev_err(adxl->dev, "Failed to initialize interfaces: %d\n", ret); return ret; }
+    if (ret) { 
+	    dev_err(adxl->dev, "Failed to initialize interfaces: %d\n", ret); 
+	    return ret; 
+    }
 
-    dev_info(adxl->dev, "ADXL345 driver initialized successfully\n"); // Keep this
+    dev_info(adxl->dev, "ADXL345 driver initialized successfully\n"); 
     return 0;
 }
 
